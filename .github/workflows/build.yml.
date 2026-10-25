@@ -1,0 +1,51 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - '*'  # Запускается при создании нового тега
+  workflow_dispatch:  # Позволяет запустить рабочий процесс вручную из вкладки Actions
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'  # Включает кэширование для инструментов Gradle
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      # Дополнительные шаги для подписи APK (если нужно)
+      - name: Set up Keystore
+        run: |
+          sudo apt update -y || true
+          sudo apt install -y --no-install-recommends coreutils
+          mkdir -p $RUNNER_TEMP/keystores
+
+      - name: Sign APK
+        run: |
+          ANDROID_SDK_PATH=$ANDROID_SDK_HOME/build-tools/35.0.0 apksigner sign \
+          --ks-store $RUNNER_TEMP/keystores/keystore \
+          --key-alias alias_keystore \
+          --key-password ${{ secrets.KEYSTORE_PASSWORD }} \
+          $RUNNER_TEMP/app-release.apk \
+          app-release
+
+      # Загрузка артефакта (подписанного APK)
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release
+          path: app/build/outputs/apk/release/app-release
+          
